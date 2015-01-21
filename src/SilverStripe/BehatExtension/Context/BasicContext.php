@@ -808,6 +808,29 @@ JS;
 	}
 
 	/**
+	* Continuously poll until callback returns true. Read more about the use of
+	* the spin function (@link http://docs.behat.org/en/v2.5/cookbook/using_spin_functions.html) 
+	* If the callback doesn't return true within $wait, timeout and throw error
+	* 
+	* @param  callback  $lambda  function to run continuously
+	* @param  integer   $wait    Timeout, default is 60 secs.
+	* 
+	* @return boolean  Returns true or false depending on the spin function
+	*/
+	public function spin($lambda, $wait = 5, $sleep = 0.5) {
+		for ($i = 0; $i < $wait; $i++){
+			try {
+				if ($lambda($this)) return true;
+			} catch (\Exception $e) {
+			// do nothing
+			}
+			sleep($sleep);
+		}
+
+		throw new \Exception ("Timeout thrown: Callback does not return true");
+	}
+
+	/**
 	 * @Given /^I scroll to the bottom$/
 	 */
 	public function iScrollToBottom() {
