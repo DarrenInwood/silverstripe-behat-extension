@@ -138,13 +138,17 @@ class SilverStripeContext extends MinkContext implements SilverStripeAwareContex
 	 */
 	public function getRegionObj($region) {
 		// Try to find regions directly by CSS selector.
-		$regionObj = $this->getSession()->getPage()->find(
-			'css',
-			// Escape CSS selector
-			(false !== strpos($region, "'")) ? str_replace("'", "\'", $region) : $region
-		);
-		if($regionObj) {
-			return $regionObj;
+		try {
+			$regionObj = $this->getSession()->getPage()->find(
+				'css',
+				// Escape CSS selector
+				(false !== strpos($region, "'")) ? str_replace("'", "\'", $region) : $region
+			);
+			if($regionObj) {
+				return $regionObj;
+			}
+		} catch(\Symfony\Component\CssSelector\Exception\SyntaxErrorException $e) {
+			// fall through to next case
 		}
 
 		// Fall back to region identified by data-title.
@@ -161,14 +165,13 @@ class SilverStripeContext extends MinkContext implements SilverStripeAwareContex
 		}
 
 		// Look for named region
-		if(!isset($this->regionMap[$region])) {
+		if(!$this->regionMap) {
 			throw new \LogicException("Cannot find 'region_map' in the behat.yml");
 		}
-		$key = $this->regionMap[$region];
-		if(!$key) {
+		if(!array_key_exists($region, $this->regionMap)) {
 			throw new \LogicException("Cannot find the specified region in the behat.yml");
 		}
-		$regionObj = $this->getSession()->getPage()->find('css', $key);
+		$regionObj = $this->getSession()->getPage()->find('css', $region);
 		if(!$regionObj) {
 			throw new ElementNotFoundException("Cannot find the specified region on the page");
 		}
@@ -200,7 +203,7 @@ class SilverStripeContext extends MinkContext implements SilverStripeAwareContex
 		}
 
 		// Fixtures
-		$fixtureFile = (!empty($params['fixture'])) ? $params['fixture'] : null;
+		$fixtureFile = (!empty($state['fixture'])) ? $state['fixture'] : null;
 		if($fixtureFile) {
 			$this->testSessionEnvironment->loadFixtureIntoDb($fixtureFile);
 		}
@@ -348,9 +351,9 @@ class SilverStripeContext extends MinkContext implements SilverStripeAwareContex
 		$fields = $this->getSession()->getPage()->findAll('named', array(
 			'field', $this->getSession()->getSelectorsHandler()->xpathLiteral($field)
 		));
-		if($fields) foreach($fields as $field) {
-			if($field->isVisible()) {
-				$field->setValue($value);
+		if($fields) foreach($fields as $f) {
+			if($f->isVisible()) {
+				$f->setValue($value);
 				return;
 			}
 		}

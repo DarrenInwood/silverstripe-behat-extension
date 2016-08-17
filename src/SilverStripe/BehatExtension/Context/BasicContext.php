@@ -76,7 +76,8 @@ class BasicContext extends BehatContext
      * because modal dialogs stop any JS interaction
      */
 	public function appendErrorHandlerBeforeStep(StepEvent $event) {
-        $javascript = <<<JS
+		try{
+			$javascript = <<<JS
 window.onerror = function(message, file, line, column, error) {
     var body = document.getElementsByTagName('body')[0];
 	var msg = message + " in " + file + ":" + line + ":" + column;
@@ -93,7 +94,10 @@ if ('undefined' !== typeof window.jQuery) {
 }
 JS;
 
-        $this->getSession()->executeScript($javascript);
+			$this->getSession()->executeScript($javascript);
+        }catch(\WebDriver\Exception $e){
+        	$this->logException($e);
+        }
     }
 
     /**
@@ -103,15 +107,16 @@ JS;
      * because modal dialogs stop any JS interaction
      */
 	public function readErrorHandlerAfterStep(StepEvent $event) {
-        $page = $this->getSession()->getPage();
-
-        $jserrors = $page->find('xpath', '//body[@data-jserrors]');
-        if (null !== $jserrors) {
-            $this->takeScreenshot($event);
-            file_put_contents('php://stderr', $jserrors->getAttribute('data-jserrors') . PHP_EOL);
-        }
-
-        $javascript = <<<JS
+		try{
+	        $page = $this->getSession()->getPage();
+	
+	        $jserrors = $page->find('xpath', '//body[@data-jserrors]');
+	        if (null !== $jserrors) {
+	            $this->takeScreenshot($event);
+	            file_put_contents('php://stderr', $jserrors->getAttribute('data-jserrors') . PHP_EOL);
+	        }
+	
+	        $javascript = <<<JS
 if ('undefined' !== typeof window.jQuery) {
 	window.jQuery(document).ready(function() {
 		window.jQuery('body').removeAttr('data-jserrors');
@@ -119,7 +124,10 @@ if ('undefined' !== typeof window.jQuery) {
 }
 JS;
 
-        $this->getSession()->executeScript($javascript);
+			$this->getSession()->executeScript($javascript);
+		}catch(\WebDriver\Exception $e){
+			$this->logException($e);
+        }
     }
 
     /**
@@ -130,14 +138,15 @@ JS;
      * @BeforeStep
      */
 	public function handleAjaxBeforeStep(StepEvent $event) {
-        $ajaxEnabledSteps = $this->getMainContext()->getAjaxSteps();
-        $ajaxEnabledSteps = implode('|', array_filter($ajaxEnabledSteps));
+		try{
+			$ajaxEnabledSteps = $this->getMainContext()->getAjaxSteps();
+			$ajaxEnabledSteps = implode('|', array_filter($ajaxEnabledSteps));
 
-        if (empty($ajaxEnabledSteps) || !preg_match('/(' . $ajaxEnabledSteps . ')/i', $event->getStep()->getText())) {
-            return;
-        }
+			if (empty($ajaxEnabledSteps) || !preg_match('/(' . $ajaxEnabledSteps . ')/i', $event->getStep()->getText())) {
+				return;
+			}
 
-        $javascript = <<<JS
+			$javascript = <<<JS
 if ('undefined' !== typeof window.jQuery && 'undefined' !== typeof window.jQuery.fn.on) {
     window.jQuery(document).on('ajaxStart.ss.test.behaviour', function(){
         window.__ajaxStatus = function() {
@@ -160,8 +169,11 @@ if ('undefined' !== typeof window.jQuery && 'undefined' !== typeof window.jQuery
     });
 }
 JS;
-        $this->getSession()->wait(500); // give browser a chance to process and render response
-        $this->getSession()->executeScript($javascript);
+			$this->getSession()->wait(500); // give browser a chance to process and render response
+			$this->getSession()->executeScript($javascript);
+		}catch(\WebDriver\Exception $e){
+			$this->logException($e);
+        }
     }
 
     /**
@@ -173,23 +185,27 @@ JS;
      * @AfterStep ~@modal
      */
 	public function handleAjaxAfterStep(StepEvent $event) {
-        $ajaxEnabledSteps = $this->getMainContext()->getAjaxSteps();
-        $ajaxEnabledSteps = implode('|', array_filter($ajaxEnabledSteps));
+		try{
+			$ajaxEnabledSteps = $this->getMainContext()->getAjaxSteps();
+			$ajaxEnabledSteps = implode('|', array_filter($ajaxEnabledSteps));
 
-        if (empty($ajaxEnabledSteps) || !preg_match('/(' . $ajaxEnabledSteps . ')/i', $event->getStep()->getText())) {
-            return;
-        }
+			if (empty($ajaxEnabledSteps) || !preg_match('/(' . $ajaxEnabledSteps . ')/i', $event->getStep()->getText())) {
+				return;
+			}
 
-        $this->handleAjaxTimeout();
+			$this->handleAjaxTimeout();
 
-        $javascript = <<<JS
+			$javascript = <<<JS
 if ('undefined' !== typeof window.jQuery && 'undefined' !== typeof window.jQuery.fn.off) {
 window.jQuery(document).off('ajaxStart.ss.test.behaviour');
 window.jQuery(document).off('ajaxComplete.ss.test.behaviour');
 window.jQuery(document).off('ajaxSuccess.ss.test.behaviour');
 }
 JS;
-        $this->getSession()->executeScript($javascript);
+			$this->getSession()->executeScript($javascript);
+		}catch(\WebDriver\Exception $e){
+			$this->logException($e);
+        }
     }
 
 	public function handleAjaxTimeout() {
@@ -212,7 +228,11 @@ JS;
      */
 	public function takeScreenshotAfterFailedStep(StepEvent $event) {
 		if (4 === $event->getResult()) {
-			$this->takeScreenshot($event);
+			try{
+				$this->takeScreenshot($event);
+			}catch(\WebDriver\Exception $e){
+				$this->logException($e);
+			}
 		}
 	}
 
@@ -222,18 +242,22 @@ JS;
 	 * @AfterScenario
 	 */
 	public function closeModalDialog(ScenarioEvent $event) {
-		// Only for failed tests on CMS page
-		if (4 === $event->getResult()) {
-			$cmsElement = $this->getSession()->getPage()->find('css', '.cms');
-			if($cmsElement) {
-				try {
-					// Navigate away triggered by reloading the page
-					$this->getSession()->reload();
-					$this->getSession()->getDriver()->getWebDriverSession()->accept_alert();
-				} catch(\WebDriver\Exception $e) {
-					// no-op, alert might not be present
+		try{
+			// Only for failed tests on CMS page
+			if (4 === $event->getResult()) {
+				$cmsElement = $this->getSession()->getPage()->find('css', '.cms');
+				if($cmsElement) {
+					try {
+						// Navigate away triggered by reloading the page
+						$this->getSession()->reload();
+						$this->getSession()->getDriver()->getWebDriverSession()->accept_alert();
+					} catch(\WebDriver\Exception $e) {
+						// no-op, alert might not be present
+					}
 				}
 			}
+		}catch(\WebDriver\Exception $e){
+			$this->logException($e);
 		}
 	}
 	
@@ -359,19 +383,42 @@ JS;
     }
 
     /**
-     * @Given /^I click "([^"]*)" in the "([^"]*)" element$/
+     * @Given /^I (click|double click) "([^"]*)" in the "([^"]*)" element$/
      */
-	public function iClickInTheElement($text, $selector) {
+    public function iClickInTheElement($clickType, $text, $selector) {
+        $clickTypeMap = array(
+            "double click" => "doubleclick",
+            "click" => "click"
+        );
         $page = $this->getSession()->getPage();
-
         $parentElement = $page->find('css', $selector);
         assertNotNull($parentElement, sprintf('"%s" element not found', $selector));
-
         $element = $parentElement->find('xpath', sprintf('//*[count(*)=0 and contains(.,"%s")]', $text));
         assertNotNull($element, sprintf('"%s" not found', $text));
-
-        $element->click();
+        $clickTypeFn = $clickTypeMap[$clickType];
+        $element->$clickTypeFn();
     }
+    
+    /**
+    * Needs to be in single command to avoid "unexpected alert open" errors in Selenium.
+    * Example: I click "Delete" in the ".actions" element, confirming the dialog
+    *
+    * @Given /^I (click|double click) "([^"]*)" in the "([^"]*)" element, confirming the dialog$/
+    */
+   public function iClickInTheElementConfirmingTheDialog($clickType, $text, $selector) {
+       $this->iClickInTheElement($clickType, $text, $selector);
+       $this->iConfirmTheDialog();
+   }
+   /**
+    * Needs to be in single command to avoid "unexpected alert open" errors in Selenium.
+    * Example: I click "Delete" in the ".actions" element, dismissing the dialog
+    *
+    * @Given /^I (click|double click) "([^"]*)" in the "([^"]*)" element, dismissing the dialog$/
+    */
+   public function iClickInTheElementDismissingTheDialog($clickType, $text, $selector) {
+       $this->iClickInTheElement($clickType, $text, $selector);
+       $this->iDismissTheDialog();
+   }
 
     /**
      * @Given /^I type "([^"]*)" into the dialog$/
@@ -807,6 +854,51 @@ JS;
 		});
 	}
 
+    /**
+     * Wait until a particular element is visible, using a CSS selector. Useful for content loaded via AJAX, or only
+     * populated after JS execution.
+     *
+     * Example: Given I wait until I see the "header .login-form" element
+     *
+     * @Given /^I wait until I see the "([^"]*)" element$/
+     */
+    public function iWaitUntilISee($selector) {
+        $page = $this->getSession()->getPage();
+        $this->spin(function($page) use ($page, $selector){
+            $element = $page->find('css', $selector);
+            if(empty($element)){
+                return false;
+            } else{
+                return ($element->isVisible());
+            }
+        });
+    }
+
+    /**
+     * Wait until a particular string is found on the page. Useful for content loaded via AJAX, or only populated after
+     * JS execution.
+     *
+     * Example: Given I wait until I see the text "Welcome back, John!"
+     *
+     * @Given /^I wait until I see the text "([^"]*)"$/
+     */
+    public function iWaitUntilISeeText($text){
+        $page = $this->getSession()->getPage();
+        $session = $this->getSession();
+        $this->spin(function($page) use ($page, $session, $text) {
+            $element = $page->find(
+                'xpath',
+                $session->getSelectorsHandler()->selectorToXpath("xpath", ".//*[contains(text(), '$text')]")
+            );
+
+            if(empty($element)) {
+                return false;
+            } else {
+                return ($element->isVisible());
+            }
+        });
+    }
+
 	/**
 	* Continuously poll until callback returns true. Read more about the use of
 	* the spin function (@link http://docs.behat.org/en/v2.5/cookbook/using_spin_functions.html) 
@@ -888,4 +980,46 @@ JS;
 		$js = sprintf("document.getElementById('%s').scrollIntoView(true);", $id);
 		$this->getSession()->executeScript($js);
 	}
+
+    /**
+     * Continuously poll the dom until callback returns true, code copied from
+     * (@link http://docs.behat.org/cookbook/using_spin_functions.html)
+     * If not found within a given wait period, timeout and throw error
+     *
+     * @param callback $lambda The function to run continuously
+     * @param integer $wait Timeout in seconds
+     * @return bool Returns true if the lambda returns successfully
+     * @throws \Exception Thrown if the wait threshold is exceeded without the lambda successfully returning
+     */
+    public function spin($lambda, $wait = 60) {
+        for ($i = 0; $i < $wait; $i++) {
+            try {
+                if($lambda($this)) {
+                    return true;
+                }
+            } catch (\Exception $e) {
+                // do nothing
+            }
+
+            sleep(1);
+        }
+
+        $backtrace = debug_backtrace();
+
+        throw new \Exception(sprintf(
+            "Timeout thrown by %s::%s()\n.",
+            $backtrace[1]['class'],
+            $backtrace[1]['function']
+        ));
+    }
+	
+	
+	
+	/**
+	 * We have to catch exceptions and log somehow else otherwise behat falls over
+	 */
+	protected function logException($e){
+		file_put_contents('php://stderr', 'Exception caught: '.$e);
+	}
+	
 }
